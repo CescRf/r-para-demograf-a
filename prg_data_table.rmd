@@ -1,0 +1,443 @@
+---
+title: "Procesamiento de microdatos en lenguaje R"
+subtitle: 'Una introducción al uso en demografía'
+author: "César Andrés Cristancho-Fajardo. <br> Docente Universidad Santo Tomás. Experto DANE. <br> "
+date: "`r Sys.Date()`"
+output: 
+  ioslides_presentation: 
+    self_contained: true
+    smaller: no
+    widescreen: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introducción ¿Qué es data.table?
+
+- Es un paquete de R para trabajar con datos tabulares -Un paquete es una colección de funciones y conjuntos de datos desarrollados por la comunidad-.
+- Es popular por su velocidad de ejecución para grandes bases de datos.
+- La sintaxis de programación es más concisa que tidyverse.
+
+<center>
+![](logo datatable.png){width="30%"}
+</center>
+
+## Introducción ¿Qué es tidyverse?
+
+- Es una colección de paquetes de R diseñados para data science.
+- Incluye los paquetes ggplot2 (gráficos), dplyr (procesamiento), tidyr (reestructuración de bases), readr (lectura de bases), purrr (programación funcional), tibble (data.frames optimizados), stringr (cadenas de caracteres), forcats (datos categoricos).  
+
+<center>
+![](tidyverse.png){width="34%"}
+</center>
+
+
+## Instalación  y carga de paquetes
+
+```{r , eval=FALSE, include=TRUE, echo = TRUE}
+# install.packages("data.table")
+# install.packages("tidyverse")
+```
+
+```{r , message=FALSE, warning=FALSE, eval=TRUE, include=TRUE, echo = TRUE}
+library(data.table)
+library(tidyverse)
+```
+
+<center>
+![](rstudio_Screenshot_1.png){width="90%"}
+</center>
+
+## Importación de datos desde un formato csv
+
+Se debe configurar la dirección de la carpeta y en ella debe estar el archivo de trabajo.
+
+```{r, echo = TRUE}
+setwd("D:/santo_tomas/clase sem 3 datatable")
+bd <- fread('pob_sex_eds_mun_anio.csv')
+glimpse(bd)
+```
+
+## División político administrativa de Colombia en formato excel
+
+Se puede descargar en un archivo formato excel de la siguiente dirección web:
+https://geoportal.dane.gov.co/geovisores/territorio/consulta-divipola-division-politico-administrativa-de-colombia/
+
+<center>
+![](divipoladesc_Screenshot_1.png){width="50%"}
+</center>
+
+## Importación de un archivo de excel
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE}
+ dpola <- readxl::read_excel('DIVIPOLA_Municipios.xlsx')
+head(dpola)
+```
+
+Al ver el contenido del archivo se ve que se trata de datos no estructurados.
+
+## Lectura mejorada desde excel
+
+Las opciones nos permiten configurar que se importe solo desde una cierta fila -skip- y un número determinado de filas -n_max-.
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE}
+dpolab <- readxl::read_excel('DIVIPOLA_Municipios.xlsx', skip = 10, n_max = 1121)
+glimpse(dpolab)
+```
+
+## Filtrado de subconjuntos de filas
+
+Se debe reemplazar 52001 por el código DIVIPOLA de su municipio de interés. El código 52001 corresponde a Pasto.
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE}
+bds <- bd[cod_area == 52001]
+glimpse(bds)
+```
+
+## Filtrado de subconjuntos de filas 2
+
+Por ejemplo el código 52835 corresponde a Tumaco.
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE}
+bdj <- bd[cod_area == 52835]
+glimpse(bdj)
+```
+
+## Cálculos de indicadores para pirámides
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE}
+
+bdsb <- bds %>% 
+  .[, total := sum(h, na.rm = TRUE) + sum(m, na.rm = TRUE), keyby = .(anio)] %>%
+  .[, `:=`(pct_h =  h / total, pct_m =  m / total ) ]
+glimpse(bds)
+```
+
+## Pirámides poblacionales con ggplot - básica
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, fig.width = 8, fig.height = 3.5}
+ggplot(bdsb) + facet_wrap(~anio) + 
+  geom_bar( aes(edad, -pct_h, fill = 'Hombre'), stat = 'identity', width = 1 ) + 
+  geom_bar( aes(edad,  pct_m, fill = 'Mujer'), stat = 'identity', width = 1 ) +
+  coord_flip() + scale_fill_discrete(name = NULL) + xlab('Edad') + ylab('')
+```
+
+## Pirámides poblacionales con ggplot - código
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=FALSE, fig.width = 8, fig.height = 4.5 }
+ggplot(bdsb) + facet_wrap(~anio) + 
+  geom_bar( aes(edad, -pct_h, fill = 'Hombre'), stat = 'identity', width = 1 ) + 
+  geom_bar( aes(edad,  pct_m, fill = 'Mujer'), stat = 'identity', width = 1 ) +
+  coord_flip() +
+  scale_fill_manual(name = NULL, values = c('#3FA0FF', '#D82632') ) +
+  scale_y_continuous(name = 'Porcentaje', breaks = seq(-.02,.02, .005) , 
+                     labels = paste0( abs(seq(-.02,.02, .005))*100 , '%') )+
+  scale_x_continuous(name = 'Edad', breaks = seq(0,100,20) ) +
+  theme_minimal()  + theme(legend.position = 'bottom')
+```
+
+
+## Pirámides poblacionales con ggplot - gráfica
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+ggplot(bdsb) + facet_wrap(~anio) + 
+  geom_bar( aes(edad, -pct_h, fill = 'Hombre'), stat = 'identity', width = 1 ) + 
+  geom_bar( aes(edad,  pct_m, fill = 'Mujer'), stat = 'identity', width = 1 ) +
+  coord_flip() +
+  scale_fill_manual(name = NULL, values = c('#3FA0FF', '#D82632') ) +
+  scale_y_continuous(name = 'Porcentaje', breaks = seq(-.02,.02, .005) , 
+                     labels = paste0( abs(seq(-.02,.02, .005))*100 , '%') )+
+  scale_x_continuous(name = 'Edad', breaks = seq(0,100,20) ) +
+  theme_minimal()  + theme(legend.position = 'bottom')
+```
+
+## Una pirámide con doble eje - código
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval= FALSE, fig.width = 8, fig.height = 4.5 }
+ggplot(bdsb[anio == 2018]) + 
+  geom_bar( aes(edad, -pct_h, fill = 'Hombre'), stat = 'identity',
+            width = 1, alpha = .5 ) + 
+  geom_bar( aes(edad,  pct_m, fill = 'Mujer'),  stat = 'identity',
+            width = 1, alpha = .5 ) +
+  coord_flip() +
+  scale_fill_manual(name = NULL, values = c('#3FA0FF', '#D82632') ) +
+  scale_y_continuous(name = 'Porcentaje', breaks = seq(-.02,.02, .0025) , 
+                     labels = paste0( abs(seq(-.02,.02, .0025))*100 , '%') )+
+  scale_x_continuous(name = 'Edad', breaks = seq(0, 100, 10),
+                     sec.axis = sec_axis(name = 'Generación', ~ 2018 - . ,
+                                         breaks = seq(2018, 1918, -10) )  ) +
+  theme_minimal()  + theme(legend.position = 'bottom')
+```
+
+## Una pirámide con doble eje - gráfico
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+ggplot(bdsb[anio == 2018]) + 
+  geom_bar( aes(edad, -pct_h, fill = 'Hombre'), stat = 'identity',
+            width = 1, alpha = .5 ) + 
+  geom_bar( aes(edad,  pct_m, fill = 'Mujer'),  stat = 'identity',
+            width = 1, alpha = .5 ) +
+  coord_flip() +
+  scale_fill_manual(name = NULL, values = c('#3FA0FF', '#D82632') ) +
+  scale_y_continuous(name = 'Porcentaje', breaks = seq(-.02,.02, .0025) , 
+                     labels = paste0( abs(seq(-.02,.02, .0025))*100 , '%') )+
+  scale_x_continuous(name = 'Edad', breaks = seq(0, 100, 10),
+                     sec.axis = sec_axis(name = 'Generación', ~ 2018 - . ,
+                                         breaks = seq(2018, 1918, -10) )  ) +
+  theme_minimal()  + theme(legend.position = 'bottom')
+```
+
+## Relaciones de masculinidad por edad - cálculo
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+bdsc <- bdsb[, rm := h / m ]
+glimpse(bdsc)
+```
+
+## Relaciones de masculinidad por edad - gráfica
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval= TRUE, fig.width = 8, fig.height = 4 }
+ggplot(bdsc[edad %in% 0:80 & anio %in% 1985:2018]) + 
+  geom_line(aes(edad,rm)) + facet_wrap(~anio) + 
+  ylab('Relación de masculinidad') + xlab('Edad')
+  
+```
+
+
+## Relaciones de masculinidad por grupos de edad - cálculo
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+bdscgre <- bdsb %>% 
+  .[, Edadgr5 := cut( edad ,  c( 0, seq(4, 90, by = 5), Inf) , 
+                       labels = c('0 a 4', '5 a 9', '10 a 14', '15 a 19', 
+                                  '20 a 24', '25 a 29',  '30 a 34', '35 a 39', 
+                                  '40 a 44', '45 a 49','50 a 54', '55 a 59', 
+                                  '60 a 64', '65 a 69', '70 a 74', '75 a 79', 
+                                  '80 a 84', '85 a 89', '90 y más') ,
+                       include.lowest = TRUE )  ]  %>% 
+  .[, .(h = sum(h,na.rm = TRUE), m = sum(m,na.rm = TRUE) ) ,
+    keyby = .(anio, Edadgr5)] %>%
+  .[, rm := h / m ]
+ 
+```
+
+## Relaciones de masculinidad por grupos de edad - resultados
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+
+glimpse(bdscgre)
+```
+
+
+## Relaciones de masculinidad por grupos de edad 
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval= TRUE, fig.width = 8, fig.height = 4 }
+ggplot(bdscgre[anio %in% 1985:2018]) +   geom_line(aes(Edadgr5,rm, group = 1)) +
+  facet_wrap(~anio) +   ylab('Relación de masculinidad') + xlab('Edad') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+```
+
+
+## Relación de edades - cálculo
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+bdsd <- bdsc %>% .[ order(anio, edad), ] %>%
+  .[, hlag  := shift(h, type = 'lag') , keyby =.(anio)  ] %>%
+  .[, hlead := shift(h, type = 'lead') , keyby =.(anio)  ] %>% 
+  .[, mlag  := shift(m, type = 'lag') , keyby =.(anio)  ] %>%
+  .[, mlead := shift(m, type = 'lead') , keyby =.(anio)  ] %>%
+  .[, raz_ed_h := 2 * h / (hlag + hlead) ] %>%
+  .[, raz_ed_m := 2 * m / (mlag + mlead) ] %>%
+  .[,.(anio, edad, raz_ed_h, raz_ed_m)]
+glimpse(bdsd)
+```
+
+
+## Relación de edades - gráfico hombres
+
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4 }
+p <- ggplot(bdsd[anio %in% 1985:2018 ]) + geom_line(aes(edad, raz_ed_h)) +
+  facet_wrap(~anio)
+p
+```
+
+
+## Relación de edades - gráfico mujeres
+
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4 }
+p <- ggplot(bdsd[anio %in% 1985:2018 ]) + geom_line(aes(edad, raz_ed_m)) + 
+  facet_wrap(~anio)
+p
+```
+
+
+## Un gráfico dinámico básico
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4 }
+# install.packages("plotly")
+library(plotly)
+ggplotly(p)
+```
+
+
+## Diagramas triangulares
+
+El paquete ggtern (www.ggtern.com) es adecuado para elaborar diagramas triangulares.
+
+```{r, echo = TRUE, eval=FALSE}
+  # install.packages('ggtern')
+```
+
+Como es usual se carga la libreria con la siguiente linea.
+
+```{r, message=FALSE, warning=FALSE, echo = TRUE, eval=TRUE}
+  library('ggtern')
+```
+
+A continuación se debe organizar una matriz de datos para tres categorías de edad.
+
+## Diagrama triangular de edad - datos
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+bdgred <-  bds %>% .[, Edadgrg := cut( edad ,  c( 0, 14, 59, Inf) , 
+                            labels = c('0 a 14', '15 a 59', '60 y más') ,
+                            include.lowest = TRUE )  ] %>%
+  .[, .(h = sum(h,na.rm = TRUE), m = sum(m,na.rm = TRUE) ), keyby = .(anio, Edadgrg)] 
+  glimpse(bdgred)
+```
+
+
+## Diagrama triangular de edad - porcentajes
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=TRUE, fig.width = 8, fig.height = 4.5 }
+bdgrb <- melt(bdgred, id.vars = c('anio', 'Edadgrg') ) %>%
+  .[, total := sum(value,na.rm = TRUE) , keyby = .(anio, variable)] %>%
+  .[, pct := value / total ] %>%
+  dcast(., anio + variable ~ Edadgrg, value.var = 'pct')
+glimpse(bdgrb)
+```
+
+## Diagrama triangular de edad - código
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=FALSE }
+ggtern(bdgrb, aes(`0 a 14`, `15 a 59` , `60 y más` )) +  
+  theme_nomask() + 
+  theme_bvbw() + 
+  geom_point(aes(colour = variable) , size = 2.5) +
+  geom_text(aes(label = paste(anio, variable)) , size = 2.5, hjust= -.1) + 
+  limit_tern(.82, .48, .37) + 
+  scale_colour_manual(name = '', values = c('#3FA0FF', '#D82632') ) +  
+  labs(x = '', y = '', z = '', xarrow = '0 a 14', yarrow = '15 a 59', zarrow = '60+') 
+
+```
+
+
+## Diagrama triangular de edad - gráfico
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, eval=TRUE, fig.width = 8, fig.height = 5 }
+ggtern(bdgrb, aes(`0 a 14`, `15 a 59` , `60 y más` )) +  theme_nomask() + 
+  theme_bvbw() + geom_point(aes(colour = variable) , size = 2.5) +
+  geom_text(aes(label = paste(anio, variable)) , size = 2.5, hjust= -.1) + 
+  limit_tern(.82, .48, .37) + 
+  scale_colour_manual(name = '', values = c('#3FA0FF', '#D82632') ) +  
+  labs(x = '', y = '', z = '', xarrow = '0 a 14', yarrow = '15 a 59', zarrow = '60+')
+
+```
+
+## Un diagrama de lexis - código
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=FALSE, fig.width = 8, fig.height = 5}
+Edad <- 0:10
+Tiempo <- 2010:2020
+pol <- data.table( y = c(0,0,10,9), x = c(2011,2010,2020, 2020), gr = rep(1,4)  )
+
+ggplot() + geom_line( aes(x=Tiempo, y=Edad), colour = "gray")   +
+  theme_bw() +  coord_fixed(ratio = 1) +
+  scale_x_continuous(breaks = seq(2010,2020), limits =c(2010,2020)) +
+  scale_y_continuous(breaks = seq(0,10), limits =c(0,10)) + 
+  geom_line( aes(x=Tiempo + 1, y=Edad), colour = "gray")  + 
+  geom_line( aes(x=Tiempo + 2, y=Edad), colour = "gray") + 
+  geom_rect(aes(xmin = 2010, xmax = 2020, ymin = 2, ymax = 3), 
+            fill = "#CCEDB1", alpha = .5 ) + # horizontal edad
+  geom_rect(aes(xmin = 2013, xmax = 2014, ymin = 0, ymax = 10),
+            fill = "#F2DBC8" , alpha = .5 ) + # vertical periodo +
+  geom_polygon( aes(x = pol$x, y = pol$y, group = pol$gr), 
+                fill = '#A5CFE9', alpha = .5 ) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+## Un diagrama de lexis - gráfico
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, eval=TRUE, fig.width = 8, fig.height = 5}
+Edad <- 0:10
+Tiempo <- 2010:2020
+pol <- data.table( y = c(0,0,10,9), x = c(2011,2010,2020, 2020), gr = rep(1,4)  )
+
+ggplot() + geom_line( aes(x=Tiempo, y=Edad), colour = "gray")   +
+  theme_bw() +  coord_fixed(ratio = 1) +
+  scale_x_continuous(breaks = seq(2010,2020), limits =c(2010,2020)) +
+  scale_y_continuous(breaks = seq(0,10), limits =c(0,10)) + 
+  geom_line( aes(x=Tiempo + 1, y=Edad), colour = "gray")  + 
+  geom_line( aes(x=Tiempo + 2, y=Edad), colour = "gray") + 
+  geom_rect(aes(xmin = 2010, xmax = 2020, ymin = 2, ymax = 3), 
+            fill = "#CCEDB1", alpha = .5 ) + # horizontal edad
+  geom_rect(aes(xmin = 2013, xmax = 2014, ymin = 0, ymax = 10),
+            fill = "#F2DBC8" , alpha = .5 ) + # vertical periodo +
+  geom_polygon( aes(x = pol$x, y = pol$y, group = pol$gr), 
+                fill = '#A5CFE9', alpha = .5 ) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+## Edad periodo y cohorte - código
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, eval=FALSE, fig.width = 8, fig.height = 5}
+Edad <- 0:10
+Tiempo <- 2010:2020
+edad_per <- data.table( y = c(4,4,5,5), x = c(2011, 2012, 2012, 2011), gr = rep(1,4)  )
+per_coh <-  data.table( y = c(4,5,6,5), x = c(2014, 2015, 2015, 2014), gr = rep(1,4)  )
+coh_edad <-  data.table( y = c(4,4,5,5), x = c(2017, 2018, 2019, 2018), gr = rep(1,4)  )
+
+ggplot() + 
+  theme_bw() +  coord_fixed(ratio = 1) + 
+  scale_x_continuous(name = 'Periodo', breaks = seq(2010, 2020), limits =c(2010, 2020)) +
+  scale_y_continuous(name = 'Edad', breaks = seq(0,10), limits =c(0,10)) + 
+  geom_polygon(aes(x = edad_per$x, y = edad_per$y, group = edad_per$gr), 
+            fill = "#CCEDB1", alpha = .5 ) +
+  geom_polygon(aes(x = per_coh$x, y = per_coh$y, group = per_coh$gr), 
+            fill = "#F2DBC8", alpha = .5 ) +
+  geom_polygon(aes(x = coh_edad$x, y = coh_edad$y, group = coh_edad$gr), 
+            fill = "#A5CFE9", alpha = .5 ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+## Edad periodo y cohorte - gráfico
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, eval=TRUE, fig.width = 8, fig.height = 5}
+Edad <- 0:10
+Tiempo <- 2010:2020
+edad_per <- data.table( y = c(4,4,5,5), x = c(2011, 2012, 2012, 2011), gr = rep(1,4)  )
+per_coh <-  data.table( y = c(4,5,6,5), x = c(2014, 2015, 2015, 2014), gr = rep(1,4)  )
+coh_edad <-  data.table( y = c(4,4,5,5), x = c(2017, 2018, 2019, 2018), gr = rep(1,4)  )
+
+ggplot() + 
+  theme_bw() +  coord_fixed(ratio = 1) + 
+  scale_x_continuous(name = 'Periodo', breaks = seq(2010, 2020), limits =c(2010, 2020)) +
+  scale_y_continuous(name = 'Edad', breaks = seq(0,10), limits =c(0,10)) + 
+  geom_polygon(aes(x = edad_per$x, y = edad_per$y, group = edad_per$gr), 
+            fill = "#CCEDB1", alpha = .5 ) +
+  geom_polygon(aes(x = per_coh$x, y = per_coh$y, group = per_coh$gr), 
+            fill = "#F2DBC8", alpha = .5 ) +
+  geom_polygon(aes(x = coh_edad$x, y = coh_edad$y, group = coh_edad$gr), 
+            fill = "#A5CFE9", alpha = .5 ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
